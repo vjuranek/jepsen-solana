@@ -14,6 +14,14 @@
 (def solana-dir "/opt/solana")
 (def solana-unit-file "/etc/systemd/system/solana.service")
 
+(defn download-release!
+  [node, version]
+  (info node "Installing Solana validator" version)
+  (c/su
+   (let [url (str "https://github.com/solana-labs/solana/releases/download/" version
+                  "/solana-release-x86_64-unknown-linux-gnu.tar.bz2")]
+     (cu/install-archive! url solana-dir))))
+
 (defn create-unit-file!
   []
   (info "Creating systemd unit file for Solana validator")
@@ -62,11 +70,7 @@
   (reify
    db/DB
    (setup! [_ test node]
-           (info node "installing Solana validator" version)
-           (c/su
-            (let [url (str "https://github.com/solana-labs/solana/releases/download/" version
-                           "/solana-release-x86_64-unknown-linux-gnu.tar.bz2")]
-              (cu/install-archive! url solana-dir)))
+           (download-release! node version)
            (configure!)
            (start!)
            (info node "Solana status: " (status)))
