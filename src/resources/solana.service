@@ -1,0 +1,11 @@
+[Unit]
+Description=Solana Test Validator
+After=network.target
+StartLimitIntervalSec=0
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+ExecStart=/opt/solana/bin/solana-test-validator
+[Install]
+WantedBy=multi-user.target

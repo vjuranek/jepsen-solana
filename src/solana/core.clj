@@ -8,9 +8,53 @@
                [db :as db]
                [tests :as tests]]
               [jepsen.control.util :as cu]
-              [jepsen.os.debian :as debian]))
+              [jepsen.os.debian :as debian]
+              [slingshot.slingshot :refer [try+ throw+]]))
 
 (def solana-dir "/opt/solana")
+(def solana-unit-file "/etc/systemd/system/solana.service")
+
+(defn create-unit-file!
+  []
+  (info "Creating systemd unit file for Solana validator")
+  (c/su
+   (c/exec :echo
+              (-> "solana.service"
+                  io/resource
+                  slurp)
+           :> solana-unit-file)))
+
+(defn configure!
+  []
+  (create-unit-file!)
+  (c/su
+   (c/exec :systemctl :daemon-reload)))
+
+(defn start!
+  "Starts Solana validator."
+  []
+  (c/su
+   (c/exec :systemctl :start :solana)))
+
+(defn stop!
+  "Stops Solana validator."
+  []
+  (try+
+   (c/su
+    (c/exec :systemctl :stop :solana))
+   (catch [:exit 5] e
+     "Service not loaded")))
+
+(defn status
+  "Returns the status of the Solana validator."
+  []
+  (try+
+   (c/su
+    (c/exec :systemctl :status :solana))
+   (catch [:exit 3] e
+     "Service not running")
+   (catch [:exit 4] e
+     "Service not defined")))
 
 (defn validator
   "Solana validator"
@@ -23,13 +67,14 @@
             (let [url (str "https://github.com/solana-labs/solana/releases/download/" version
                            "/solana-release-x86_64-unknown-linux-gnu.tar.bz2")]
               (cu/install-archive! url solana-dir)))
-           ;;(start!)
-           (info node "Solana installed in " solana-dir))
+           (configure!)
+           (start!)
+           (info node "Solana status: " (status)))
 
    (teardown! [_ test node]
               (info node "tearing down Solana validator")
-              ;;(stop!)
-              )))
+              (stop!)
+              (info node "Solana status: " (status)))))
 
 (defn solana-test
   "Given an options map from the command line runner (e.g. :nodes, :ssh,
